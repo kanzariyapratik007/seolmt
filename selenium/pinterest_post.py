@@ -444,9 +444,9 @@ def safe_get(driver, url, max_retries=3, delay=3):
                 time.sleep(delay)
                 current = (driver.current_url or '').lower()
                 page_src = (driver.page_source or '').lower()
-                if "neterror" not in current and "chrome-error" not in current and "err_name_not_resolved" not in page_src:
+                if "neterror" not in current and "chrome-error" not in current and "err_name_not_resolved" not in page_src and "this site can't be reached" not in page_src:
                     return True
-                log(f"DNS/Network note on {target_url}, trying fallback...")
+                log(f"Network/DNS hiccup on {target_url} (Attempt {i+1}/{max_retries}), retrying in {delay}s...")
                 time.sleep(delay)
             except Exception as e:
                 log(f"Navigation attempt {i+1} failed: {e}")
