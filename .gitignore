@@ -133,4 +133,5 @@ coverage/
 uploads.tar.gz
 uploads.tar.gz
 *.sql
+!database.sql
 *.txt
