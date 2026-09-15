@@ -8,6 +8,15 @@ set -e
 
 echo "🚀 Starting automated setup for SEO System..."
 
+# 0. Create 1GB Swap file if missing (Prevents AWS OOM Memory Killer on 1GB RAM EC2)
+if [ ! -f /swapfile ]; then
+    echo "💾 Creating 1GB Swap memory to prevent RAM exhaustion..."
+    sudo fallocate -l 1G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=1024 2>/dev/null || true
+    sudo chmod 600 /swapfile 2>/dev/null || true
+    sudo mkswap /swapfile 2>/dev/null || true
+    sudo swapon /swapfile 2>/dev/null || true
+fi
+
 # 1. Stop & Disable Apache2 if auto-installed (Nginx owns Port 80)
 echo "🛑 Disabling Apache2 to prevent Port 80 conflicts..."
 sudo systemctl stop apache2 2>/dev/null || true
@@ -18,6 +27,8 @@ sudo rm -f /etc/nginx/conf.d/seo-system.conf 2>/dev/null || true
 echo "📦 Installing MySQL Server, PHP-FPM & extensions..."
 sudo apt-get update -y
 sudo apt-get install -y mysql-server php-cli php-fpm php-mysql php8.3-mysql php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+sudo dpkg --configure -a || true
+sudo apt-get install -f -y || true
 
 # Start MySQL Service
 sudo systemctl enable mysql 2>/dev/null || true
