@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# Safe AWS Automated Deployment Script for SEO System (Ubuntu 24.04 + Nginx)
+# Safe AWS Automated Deployment Script for SEO System (Ubuntu 24.04 + Nginx + MySQL)
 # (Designed to run safely alongside existing Nginx/Gunicorn/Postgres projects)
 # =================================================================
 
@@ -14,10 +14,17 @@ sudo systemctl stop apache2 2>/dev/null || true
 sudo systemctl disable apache2 2>/dev/null || true
 sudo rm -f /etc/nginx/conf.d/seo-system.conf 2>/dev/null || true
 
-# 2. Install required PHP, MySQL & PHP-FPM dependencies
-echo "📦 Installing PHP-FPM, MySQL & extensions..."
+# 2. Install MySQL Server & PHP-FPM dependencies
+echo "📦 Installing MySQL Server, PHP-FPM & extensions..."
 sudo apt-get update -y
-sudo apt-get install -y php-cli php-fpm php-mysql php8.3-mysql php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+sudo apt-get install -y mysql-server php-cli php-fpm php-mysql php8.3-mysql php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+
+# Start MySQL Service
+sudo systemctl enable mysql 2>/dev/null || true
+sudo systemctl start mysql 2>/dev/null || true
+
+# Create database seo_system if missing
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS seo_system;" 2>/dev/null || true
 
 # Restart PHP-FPM to load new mysql extensions
 sudo systemctl restart php8.3-fpm 2>/dev/null || sudo systemctl restart php-fpm 2>/dev/null || true
@@ -33,15 +40,15 @@ DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 sudo chown -R www-data:www-data "$DIR_PATH"
 sudo chmod -R 775 "$DIR_PATH"
 sudo chmod -R 777 "$DIR_PATH/uploads" "$DIR_PATH/logs" 2>/dev/null || true
-if [ -f "$DIR_PATH/seo_database.db" ]; then
-    sudo chmod 666 "$DIR_PATH/seo_database.db"
-fi
 
-# 4. Create config.local.php if missing
+# 4. Create config.local.php if missing & set standard DB_HOST (127.0.0.1)
 if [ ! -f "$DIR_PATH/config.local.php" ]; then
     echo "⚙️ Creating default config.local.php..."
     cp "$DIR_PATH/config.local.php.example" "$DIR_PATH/config.local.php" 2>/dev/null || true
 fi
+
+# Ensure DB_HOST is set to standard 127.0.0.1 (not 3307 local port)
+sudo sed -i "s|'DB_HOST' => '.*'|'DB_HOST' => '127.0.0.1'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
 
 # 5. Safely inject /seo-system/ location block into active Nginx server block
 echo "⚙️ Configuring Nginx with PHP-FPM..."
