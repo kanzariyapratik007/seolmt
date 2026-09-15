@@ -6,6 +6,8 @@
 
 set -e
 
+DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "🚀 Starting automated setup for SEO System..."
 
 # 0. Create 1GB Swap file if missing (Prevents AWS OOM Memory Killer on 1GB RAM EC2)
@@ -70,7 +72,6 @@ sudo mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 
 # 3. Set directory permissions
 echo "🔒 Setting directory permissions..."
-DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 sudo chown -R www-data:www-data "$DIR_PATH"
 sudo chmod -R 775 "$DIR_PATH"
 sudo chmod -R 777 "$DIR_PATH/uploads" "$DIR_PATH/logs" 2>/dev/null || true
