@@ -15,6 +15,15 @@ if [ ! -f /swapfile ]; then
     sudo chmod 600 /swapfile 2>/dev/null || true
     sudo mkswap /swapfile 2>/dev/null || true
     sudo swapon /swapfile 2>/dev/null || true
+    if ! grep -q '/swapfile' /etc/fstab; then
+        echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab 2>/dev/null || true
+    fi
+fi
+
+# Clean broken MySQL state if unconfigured
+if ! systemctl is-active --quiet mysql 2>/dev/null; then
+    sudo systemctl stop mysql 2>/dev/null || true
+    sudo rm -rf /var/lib/mysql /var/lib/mysql-files /var/lib/mysql-keyring 2>/dev/null || true
 fi
 
 # 1. Stop & Disable Apache2 if auto-installed (Nginx owns Port 80)
@@ -27,8 +36,18 @@ sudo rm -f /etc/nginx/conf.d/seo-system.conf 2>/dev/null || true
 echo "📦 Installing MySQL Server, PHP-FPM & extensions..."
 sudo apt-get update -y
 sudo apt-get install -y mysql-server php-cli php-fpm php-mysql php8.3-mysql php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
-sudo dpkg --configure -a || true
-sudo apt-get install -f -y || true
+
+# Fix half-initialized/corrupted MySQL datadir if service failed
+if ! systemctl is-active --quiet mysql 2>/dev/null; then
+    echo "🧹 Initializing fresh MySQL instance..."
+    sudo systemctl stop mysql 2>/dev/null || true
+    sudo rm -rf /var/lib/mysql /var/lib/mysql-files /var/lib/mysql-keyring 2>/dev/null || true
+    sudo mkdir -p /var/lib/mysql /var/lib/mysql-files /var/lib/mysql-keyring 2>/dev/null || true
+    sudo chown -R mysql:mysql /var/lib/mysql /var/lib/mysql-files /var/lib/mysql-keyring 2>/dev/null || true
+    sudo mysqld --initialize-insecure --user=mysql 2>/dev/null || true
+    sudo systemctl start mysql 2>/dev/null || true
+    sudo dpkg --configure -a || true
+fi
 
 # Start MySQL Service
 sudo systemctl enable mysql 2>/dev/null || true
