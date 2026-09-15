@@ -1,0 +1,19 @@
+<?php
+/**
+ * Copy this file to config.local.php and fill in your API keys.
+ */
+return [
+    // REQUIRED — ChatGPT for all AI content
+  // Get from: https://platform.openai.com/api-keys
+    'OPENAI_API_KEY' => 'sk-paste-your-openai-key-here',
+    'OPENAI_MODEL'   => 'gpt-4o-mini',
+    'GEMINI_API_KEY' => 'paste-your-gemini-key-here',
+
+    // OPTIONAL — real Google rank
+    'DATAFORSEO_LOGIN'    => '',
+    'DATAFORSEO_PASSWORD' => '',
+
+    'GOOGLE_API_KEY' => '',
+    'STABILITY_API_KEY'   => '',
+    'HUGGINGFACE_API_KEY' => '',
+];
