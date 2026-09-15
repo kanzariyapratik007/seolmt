@@ -8,7 +8,7 @@ set -e
 
 echo "🚀 Starting automated setup for SEO System..."
 
-# 1. Stop & Disable Apache2 if it was auto-installed (since Nginx owns Port 80)
+# 1. Stop & Disable Apache2 if auto-installed (Nginx owns Port 80)
 echo "🛑 Disabling Apache2 to prevent Port 80 conflicts..."
 sudo systemctl stop apache2 2>/dev/null || true
 sudo systemctl disable apache2 2>/dev/null || true
@@ -19,7 +19,7 @@ echo "📦 Installing PHP-FPM & extensions..."
 sudo apt-get update -y
 sudo apt-get install -y php-cli php-fpm php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
 
-# Install Python Playwright for automated posting (--break-system-packages for Ubuntu 24.04)
+# Install Python Playwright for automated posting
 echo "📦 Setting up Python Playwright..."
 python3 -m pip install --break-system-packages playwright 2>/dev/null || true
 python3 -m playwright install 2>/dev/null || true
@@ -40,22 +40,31 @@ if [ ! -f "$DIR_PATH/config.local.php" ]; then
     cp "$DIR_PATH/config.local.php.example" "$DIR_PATH/config.local.php" 2>/dev/null || true
 fi
 
-# 5. Enable PHP-FPM in Nginx default site configuration
+# 5. Safely inject /seo-system/ location block into active Nginx server block
 echo "⚙️ Configuring Nginx with PHP-FPM..."
 PHP_SOCK=$(ls /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "")
+ACTIVE_SITE=$(ls /etc/nginx/sites-enabled/* 2>/dev/null | head -n 1 || echo "")
 
-if [ -n "$PHP_SOCK" ] && [ -f "/etc/nginx/sites-available/default" ]; then
-    # Ensure index.php is in index directive
-    if ! grep -q "index.php" /etc/nginx/sites-available/default; then
-        sudo sed -i 's/index index.html/index index.php index.html/' /etc/nginx/sites-available/default || true
-    fi
+if [ -n "$PHP_SOCK" ] && [ -n "$ACTIVE_SITE" ]; then
+    # Remove previous /seo-system block if present to avoid duplication
+    sudo sed -i '/# START SEO-SYSTEM/,/# END SEO-SYSTEM/d' "$ACTIVE_SITE" || true
     
-    # Enable PHP fastcgi location if not already enabled
-    if ! grep -q "fastcgi_pass" /etc/nginx/sites-available/default; then
-        sudo sed -i '/location \/ {/i \    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:'"$PHP_SOCK"';\n    }\n' /etc/nginx/sites-available/default || true
-    fi
-    
-    sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reloaded successfully"
+    # Inject location /seo-system/ inside the active Nginx server block
+    sudo sed -i "/server_name/a \\
+    # START SEO-SYSTEM\\
+    location /seo-system/ {\\
+        alias $DIR_PATH/;\\
+        index index.php index.html;\\
+        try_files \$uri \$uri/ /seo-system/index.php?\$args;\\
+        location ~ \\.php$ {\\
+            include fastcgi_params;\\
+            fastcgi_param SCRIPT_FILENAME \$request_filename;\\
+            fastcgi_pass unix:$PHP_SOCK;\\
+        }\\
+    }\\
+    # END SEO-SYSTEM" "$ACTIVE_SITE" || true
+
+    sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reloaded"
 fi
 
 # 6. Create and start background queue systemd service (seo-worker)
@@ -84,5 +93,5 @@ sudo systemctl restart seo-worker
 
 echo "================================================="
 echo "✅ SEO System deployment completed successfully!"
-echo "📍 Access URL: http://172.31.35.180/seo-system/"
+echo "📍 Access URL: http://YOUR_AWS_PUBLIC_IP/seo-system/"
 echo "================================================="
