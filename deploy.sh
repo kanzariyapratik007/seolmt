@@ -14,10 +14,13 @@ sudo systemctl stop apache2 2>/dev/null || true
 sudo systemctl disable apache2 2>/dev/null || true
 sudo rm -f /etc/nginx/conf.d/seo-system.conf 2>/dev/null || true
 
-# 2. Install required PHP & PHP-FPM dependencies
-echo "📦 Installing PHP-FPM & extensions..."
+# 2. Install required PHP, MySQL & PHP-FPM dependencies
+echo "📦 Installing PHP-FPM, MySQL & extensions..."
 sudo apt-get update -y
-sudo apt-get install -y php-cli php-fpm php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+sudo apt-get install -y php-cli php-fpm php-mysql php8.3-mysql php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+
+# Restart PHP-FPM to load new mysql extensions
+sudo systemctl restart php8.3-fpm 2>/dev/null || sudo systemctl restart php-fpm 2>/dev/null || true
 
 # Install Python Playwright for automated posting
 echo "📦 Setting up Python Playwright..."
