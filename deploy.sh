@@ -1,6 +1,6 @@
 #!/bin/bash
 # =================================================================
-# Safe AWS Automated Deployment Script for SEO System (Nginx & Apache compatible)
+# Safe AWS Automated Deployment Script for SEO System (Ubuntu 24.04 + Nginx)
 # (Designed to run safely alongside existing Nginx/Gunicorn/Postgres projects)
 # =================================================================
 
@@ -8,16 +8,23 @@ set -e
 
 echo "🚀 Starting automated setup for SEO System..."
 
-# 1. Install required PHP dependencies
-echo "📦 Installing PHP & PHP-FPM dependencies..."
+# 1. Stop & Disable Apache2 if it was auto-installed (since Nginx owns Port 80)
+echo "🛑 Disabling Apache2 to prevent Port 80 conflicts..."
+sudo systemctl stop apache2 2>/dev/null || true
+sudo systemctl disable apache2 2>/dev/null || true
+sudo rm -f /etc/nginx/conf.d/seo-system.conf 2>/dev/null || true
+
+# 2. Install required PHP & PHP-FPM dependencies
+echo "📦 Installing PHP-FPM & extensions..."
 sudo apt-get update -y
-sudo apt-get install -y php php-fpm php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
+sudo apt-get install -y php-cli php-fpm php-sqlite3 php-curl php-gd php-mbstring php-xml zip unzip python3 python3-pip || true
 
-# Install Python Playwright for automated posting if needed
-python3 -m pip install playwright || true
-python3 -m playwright install || true
+# Install Python Playwright for automated posting (--break-system-packages for Ubuntu 24.04)
+echo "📦 Setting up Python Playwright..."
+python3 -m pip install --break-system-packages playwright 2>/dev/null || true
+python3 -m playwright install 2>/dev/null || true
 
-# 2. Set directory permissions
+# 3. Set directory permissions
 echo "🔒 Setting directory permissions..."
 DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 sudo chown -R www-data:www-data "$DIR_PATH"
@@ -27,36 +34,31 @@ if [ -f "$DIR_PATH/seo_database.db" ]; then
     sudo chmod 666 "$DIR_PATH/seo_database.db"
 fi
 
-# 3. Create config.local.php if missing
+# 4. Create config.local.php if missing
 if [ ! -f "$DIR_PATH/config.local.php" ]; then
     echo "⚙️ Creating default config.local.php..."
     cp "$DIR_PATH/config.local.php.example" "$DIR_PATH/config.local.php" 2>/dev/null || true
 fi
 
-# 4. Configure Nginx safely if Nginx is active
-if systemctl is-active --quiet nginx; then
-    echo "⚙️ Nginx detected! Configuring PHP-FPM location for SEO System..."
-    PHP_SOCK=$(ls /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "")
-    
-    if [ -n "$PHP_SOCK" ]; then
-        sudo bash -c "cat <<EOF > /etc/nginx/conf.d/seo-system.conf
-location /seo-system {
-    alias $DIR_PATH;
-    index index.php index.html;
-    try_files \$uri \$uri/ /seo-system/index.php?\$args;
+# 5. Enable PHP-FPM in Nginx default site configuration
+echo "⚙️ Configuring Nginx with PHP-FPM..."
+PHP_SOCK=$(ls /var/run/php/php*-fpm.sock 2>/dev/null | head -n 1 || echo "")
 
-    location ~ \.php$ {
-        include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME \$request_filename;
-        fastcgi_pass unix:$PHP_SOCK;
-    }
-}
-EOF"
-        sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reload warning ignored"
+if [ -n "$PHP_SOCK" ] && [ -f "/etc/nginx/sites-available/default" ]; then
+    # Ensure index.php is in index directive
+    if ! grep -q "index.php" /etc/nginx/sites-available/default; then
+        sudo sed -i 's/index index.html/index index.php index.html/' /etc/nginx/sites-available/default || true
     fi
+    
+    # Enable PHP fastcgi location if not already enabled
+    if ! grep -q "fastcgi_pass" /etc/nginx/sites-available/default; then
+        sudo sed -i '/location \/ {/i \    location ~ \\.php$ {\n        include snippets/fastcgi-php.conf;\n        fastcgi_pass unix:'"$PHP_SOCK"';\n    }\n' /etc/nginx/sites-available/default || true
+    fi
+    
+    sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reloaded successfully"
 fi
 
-# 5. Create and start background queue systemd service (seo-worker)
+# 6. Create and start background queue systemd service (seo-worker)
 echo "⚙️ Setting up background queue worker service..."
 SERVICE_FILE="/etc/systemd/system/seo-worker.service"
 
@@ -82,5 +84,5 @@ sudo systemctl restart seo-worker
 
 echo "================================================="
 echo "✅ SEO System deployment completed successfully!"
-echo "📍 Access path: http://YOUR_AWS_PUBLIC_IP/seo-system/"
+echo "📍 Access URL: http://172.31.35.180/seo-system/"
 echo "================================================="
