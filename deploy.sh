@@ -72,8 +72,11 @@ sudo mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$DIR_PATH/database.sql" ]; then
     echo "📥 Importing database.sql schema..."
-    sudo mysql seo_system < "$DIR_PATH/database.sql" 2>/dev/null || true
+    sudo mysql < "$DIR_PATH/database.sql" 2>/dev/null || sudo mysql -u seo_user -pseo_pass_123 < "$DIR_PATH/database.sql" 2>/dev/null || true
 fi
+
+# Seed default admin account if table empty
+sudo php -r "require_once '$DIR_PATH/config.php'; \$db=getDB(); \$cnt=\$db->query('SELECT COUNT(*) FROM users')->fetchColumn(); if(\$cnt==0) { \$h=password_hash('admin123', PASSWORD_BCRYPT); \$db->exec(\"INSERT INTO users (username, password, email, role) VALUES ('admin', '\$h', 'admin@seo-system.local', 'admin')\"); }" 2>/dev/null || true
 
 # Restart PHP-FPM to load new mysql extensions
 sudo systemctl restart php8.3-fpm 2>/dev/null || sudo systemctl restart php-fpm 2>/dev/null || true
