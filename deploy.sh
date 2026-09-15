@@ -68,8 +68,32 @@ sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTI
 sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;" 2>/dev/null || true
 sudo mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 
-# Import database schema if database.sql exists
+# 3. Set directory permissions
+echo "🔒 Setting directory permissions..."
 DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sudo chown -R www-data:www-data "$DIR_PATH"
+sudo chmod -R 775 "$DIR_PATH"
+sudo chmod -R 777 "$DIR_PATH/uploads" "$DIR_PATH/logs" 2>/dev/null || true
+
+# 4. Create and update config.local.php safely via PHP
+echo "⚙️ Creating & updating config.local.php..."
+sudo php -r "
+\$path = '$DIR_PATH/config.local.php';
+\$example = '$DIR_PATH/config.local.php.example';
+\$config = file_exists(\$path) ? @include(\$path) : [];
+if (!is_array(\$config)) \$config = file_exists(\$example) ? @include(\$example) : [];
+if (!is_array(\$config)) \$config = [];
+\$config['DB_HOST'] = '127.0.0.1';
+\$config['DB_USER'] = 'seo_user';
+\$config['DB_PASS'] = 'seo_pass_123';
+\$config['DB_NAME'] = 'seo_system';
+if (empty(\$config['SITE_URL']) || strpos(\$config['SITE_URL'], 'localhost') !== false) {
+    \$config['SITE_URL'] = 'http://13.206.147.70/seo-system';
+}
+file_put_contents(\$path, \"<?php\nreturn \" . var_export(\$config, true) . \";\n\");
+" 2>/dev/null || true
+
+# Import database schema if database.sql exists
 if [ -f "$DIR_PATH/database.sql" ]; then
     echo "📥 Importing database.sql schema..."
     sudo mysql < "$DIR_PATH/database.sql" 2>/dev/null || sudo mysql -u seo_user -pseo_pass_123 < "$DIR_PATH/database.sql" 2>/dev/null || true
@@ -85,27 +109,6 @@ sudo systemctl restart php8.3-fpm 2>/dev/null || sudo systemctl restart php-fpm 
 echo "📦 Setting up Python Playwright..."
 python3 -m pip install --break-system-packages playwright 2>/dev/null || true
 python3 -m playwright install 2>/dev/null || true
-
-# 3. Set directory permissions
-echo "🔒 Setting directory permissions..."
-sudo chown -R www-data:www-data "$DIR_PATH"
-sudo chmod -R 775 "$DIR_PATH"
-sudo chmod -R 777 "$DIR_PATH/uploads" "$DIR_PATH/logs" 2>/dev/null || true
-
-# 4. Create config.local.php if missing & set DB credentials
-if [ ! -f "$DIR_PATH/config.local.php" ]; then
-    echo "⚙️ Creating default config.local.php..."
-    cp "$DIR_PATH/config.local.php.example" "$DIR_PATH/config.local.php" 2>/dev/null || true
-fi
-
-# Update DB settings in config.local.php to use seo_user
-sudo sed -i "s|'DB_HOST' => '.*'|'DB_HOST' => '127.0.0.1'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
-if ! grep -q 'DB_USER' "$DIR_PATH/config.local.php"; then
-    sudo sed -i "/return \[/a \\    'DB_USER' => 'seo_user',\\n    'DB_PASS' => 'seo_pass_123'," "$DIR_PATH/config.local.php" 2>/dev/null || true
-else
-    sudo sed -i "s|'DB_USER' => '.*'|'DB_USER' => 'seo_user'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
-    sudo sed -i "s|'DB_PASS' => '.*'|'DB_PASS' => 'seo_pass_123'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
-fi
 
 # 5. Safely inject /seo-system/ location block into active Nginx server block
 echo "⚙️ Configuring Nginx with PHP-FPM..."
