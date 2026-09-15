@@ -100,6 +100,32 @@ if [ -f "$DIR_PATH/database.sql" ]; then
     sudo mysql < "$DIR_PATH/database.sql" 2>/dev/null || sudo mysql -u seo_user -pseo_pass_123 < "$DIR_PATH/database.sql" 2>/dev/null || true
 fi
 
+# Apply self-healing schema updates for missing table columns
+echo "🛠️ Applying self-healing database column migrations..."
+sudo php -r "
+require_once '$DIR_PATH/config.php';
+\$db = getDB();
+\$alters = [
+    'ALTER TABLE seo_reports ADD COLUMN \`rank\` INT DEFAULT 0',
+    'ALTER TABLE seo_reports ADD COLUMN seo_score INT DEFAULT 0',
+    'ALTER TABLE seo_reports ADD COLUMN report_date DATE DEFAULT NULL',
+    'ALTER TABLE projects ADD COLUMN contact_name VARCHAR(255) DEFAULT \'\'',
+    'ALTER TABLE projects ADD COLUMN phone VARCHAR(50) DEFAULT \'\'',
+    'ALTER TABLE projects ADD COLUMN email VARCHAR(255) DEFAULT \'\'',
+    'ALTER TABLE projects ADD COLUMN package_type VARCHAR(50) DEFAULT \'basic\'',
+    'ALTER TABLE backlink_queue ADD COLUMN social_account_id INT DEFAULT NULL',
+    'ALTER TABLE backlink_queue ADD COLUMN keyword VARCHAR(255) DEFAULT NULL',
+    'ALTER TABLE backlink_queue ADD COLUMN target_url VARCHAR(500) DEFAULT NULL',
+    'ALTER TABLE backlink_queue ADD COLUMN published_url VARCHAR(500) DEFAULT NULL',
+    'ALTER TABLE backlink_queue ADD COLUMN error_message TEXT DEFAULT NULL',
+    'ALTER TABLE backlink_queue ADD COLUMN updated_at DATETIME DEFAULT NULL',
+    'ALTER TABLE social_accounts ADD COLUMN project_id INT NOT NULL DEFAULT 0'
+];
+foreach (\$alters as \$sql) {
+    try { \$db->exec(\$sql); } catch (Throwable \$e) {}
+}
+" 2>/dev/null || true
+
 # Seed default admin account if table empty
 sudo php -r "require_once '$DIR_PATH/config.php'; \$db=getDB(); \$cnt=\$db->query('SELECT COUNT(*) FROM users')->fetchColumn(); if(\$cnt==0) { \$h=password_hash('admin123', PASSWORD_BCRYPT); \$db->exec(\"INSERT INTO users (username, password, email, role) VALUES ('admin', '\$h', 'admin@seo-system.local', 'admin')\"); }" 2>/dev/null || true
 
