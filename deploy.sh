@@ -53,8 +53,27 @@ fi
 sudo systemctl enable mysql 2>/dev/null || true
 sudo systemctl start mysql 2>/dev/null || true
 
-# Create database seo_system if missing
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS seo_system;" 2>/dev/null || true
+# Setup MySQL users & permissions (Fixes Ubuntu socket / auth_socket access denied for www-data)
+echo "⚙️ Configuring MySQL Database & Permissions..."
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS seo_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+sudo mysql -e "CREATE USER IF NOT EXISTS 'seo_user'@'localhost' IDENTIFIED BY 'seo_pass_123';" 2>/dev/null || true
+sudo mysql -e "ALTER USER 'seo_user'@'localhost' IDENTIFIED BY 'seo_pass_123';" 2>/dev/null || true
+sudo mysql -e "CREATE USER IF NOT EXISTS 'seo_user'@'127.0.0.1' IDENTIFIED BY 'seo_pass_123';" 2>/dev/null || true
+sudo mysql -e "ALTER USER 'seo_user'@'127.0.0.1' IDENTIFIED BY 'seo_pass_123';" 2>/dev/null || true
+sudo mysql -e "GRANT ALL PRIVILEGES ON seo_system.* TO 'seo_user'@'localhost';" 2>/dev/null || true
+sudo mysql -e "GRANT ALL PRIVILEGES ON seo_system.* TO 'seo_user'@'127.0.0.1';" 2>/dev/null || true
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '';" 2>/dev/null || true
+sudo mysql -e "CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED BY '';" 2>/dev/null || true
+sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;" 2>/dev/null || true
+sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;" 2>/dev/null || true
+sudo mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+
+# Import database schema if database.sql exists
+DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$DIR_PATH/database.sql" ]; then
+    echo "📥 Importing database.sql schema..."
+    sudo mysql seo_system < "$DIR_PATH/database.sql" 2>/dev/null || true
+fi
 
 # Restart PHP-FPM to load new mysql extensions
 sudo systemctl restart php8.3-fpm 2>/dev/null || sudo systemctl restart php-fpm 2>/dev/null || true
@@ -66,19 +85,24 @@ python3 -m playwright install 2>/dev/null || true
 
 # 3. Set directory permissions
 echo "🔒 Setting directory permissions..."
-DIR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 sudo chown -R www-data:www-data "$DIR_PATH"
 sudo chmod -R 775 "$DIR_PATH"
 sudo chmod -R 777 "$DIR_PATH/uploads" "$DIR_PATH/logs" 2>/dev/null || true
 
-# 4. Create config.local.php if missing & set standard DB_HOST (127.0.0.1)
+# 4. Create config.local.php if missing & set DB credentials
 if [ ! -f "$DIR_PATH/config.local.php" ]; then
     echo "⚙️ Creating default config.local.php..."
     cp "$DIR_PATH/config.local.php.example" "$DIR_PATH/config.local.php" 2>/dev/null || true
 fi
 
-# Ensure DB_HOST is set to standard 127.0.0.1 (not 3307 local port)
+# Update DB settings in config.local.php to use seo_user
 sudo sed -i "s|'DB_HOST' => '.*'|'DB_HOST' => '127.0.0.1'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
+if ! grep -q 'DB_USER' "$DIR_PATH/config.local.php"; then
+    sudo sed -i "/return \[/a \\    'DB_USER' => 'seo_user',\\n    'DB_PASS' => 'seo_pass_123'," "$DIR_PATH/config.local.php" 2>/dev/null || true
+else
+    sudo sed -i "s|'DB_USER' => '.*'|'DB_USER' => 'seo_user'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
+    sudo sed -i "s|'DB_PASS' => '.*'|'DB_PASS' => 'seo_pass_123'|g" "$DIR_PATH/config.local.php" 2>/dev/null || true
+fi
 
 # 5. Safely inject /seo-system/ location block into active Nginx server block
 echo "⚙️ Configuring Nginx with PHP-FPM..."
