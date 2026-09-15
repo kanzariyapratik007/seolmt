@@ -9,18 +9,30 @@ return [
     'DB_NAME' => 'seo_system',
     'SITE_URL' => 'http://13.206.147.70/seo-system',
 
-    // REQUIRED — ChatGPT for all AI content
-    // Get from: https://platform.openai.com/api-keys
-    'OPENAI_API_KEY' => 'sk-paste-your-openai-key-here',
+    // REQUIRED — AI & APIs
+    'OPENAI_API_KEY' => '',
     'OPENAI_MODEL'   => 'gpt-4o-mini',
     'GEMINI_API_KEY' => 'paste-your-gemini-key-here',
+    'PRIMARY_AI_PROVIDER' => 'deepseek',
+    'DEEPSEEK_API_KEY' => '',
+    'DEEPSEEK_MODEL' => 'deepseek-chat',
 
-    // OPTIONAL — real Google rank
+    // Rank Tracking & Search APIs
     'DATAFORSEO_LOGIN'    => '',
     'DATAFORSEO_PASSWORD' => '',
+    'GOOGLE_API_KEY'      => '',
+    'GOOGLE_CSE_CX'       => '',
 
-    'GOOGLE_API_KEY' => '',
+    // SMTP Mailer
+    'SMTP_HOST' => 'smtp.gmail.com',
+    'SMTP_PORT' => 465,
+    'SMTP_USER' => '',
+    'SMTP_PASS' => '',
+
     'STABILITY_API_KEY'   => '',
     'HUGGINGFACE_API_KEY' => '',
+    'ENABLE_TIER2_POSTING' => true,
 ];
+
+
 
